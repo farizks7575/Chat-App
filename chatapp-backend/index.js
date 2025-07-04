@@ -7,15 +7,28 @@ const { injectIO, setUserSockets } = require('./Controller/messageController');
 require('./DB/connection');
 
 const app = express();
-app.use(cors({ origin: '*' }));
+
+// ✅ 1. CORS: Remove trailing slash and allow credentials (optional but safer)
+app.use(cors({
+  origin: 'https://candid-duckanoo-4f5524.netlify.app',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+}));
+
 app.use(express.json());
 app.use('/uploads', express.static('./Uploads'));
 app.use(router);
 
 const server = http.createServer(app);
 const { Server } = require('socket.io');
+
+// ✅ 2. Socket.IO CORS config should match express CORS
 const io = new Server(server, {
-  cors: { origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE'] }, // Added DELETE method for completeness
+  cors: {
+    origin: 'https://candid-duckanoo-4f5524.netlify.app',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true
+  }
 });
 
 const users = {};
@@ -28,53 +41,31 @@ io.on('connection', (socket) => {
   socket.on('register_user', (userId) => {
     if (userId) {
       users[userId] = socket.id;
-      socket.join(userId); // Join user-specific room
+      socket.join(userId);
       console.log(`User ${userId} registered with socket ${socket.id}`);
-    } else {
-      console.log('Invalid userId received:', userId);
     }
   });
 
   socket.on('send_message', (message) => {
-    const { sender, receiver, content, timestamp, _id } = message; // Added _id to include message ID
+    const { sender, receiver, content, timestamp, _id } = message;
     if (receiver && users[receiver]) {
-      // Emit to receiver
-      io.to(users[receiver]).emit('receive_message', {
-        sender,
-        receiver,
-        content,
-        timestamp,
-        _id, // Include message ID
-      });
-      // Emit to sender (to update their own chat)
+      io.to(users[receiver]).emit('receive_message', { sender, receiver, content, timestamp, _id });
       if (users[sender]) {
-        io.to(users[sender]).emit('receive_message', {
-          sender,
-          receiver,
-          content,
-          timestamp,
-          _id, // Include message ID
-        });
+        io.to(users[sender]).emit('receive_message', { sender, receiver, content, timestamp, _id });
       }
-      console.log(`Message sent from ${sender} to ${receiver} with ID ${_id}`);
     } else {
       console.log(`Receiver ${receiver} not found or offline`);
     }
   });
 
-  // Handle message deletion
   socket.on('message_deleted', ({ messageId, receiver }) => {
     if (receiver && users[receiver]) {
-      // Notify receiver of deleted message
       io.to(users[receiver]).emit('message_deleted', { messageId });
-      console.log(`Message ${messageId} deletion notified to ${receiver}`);
     }
-    // Notify sender as well (in case they have multiple devices)
     const senderSocketId = socket.id;
     const senderId = Object.keys(users).find((key) => users[key] === senderSocketId);
     if (senderId && users[senderId]) {
       io.to(users[senderId]).emit('message_deleted', { messageId });
-      console.log(`Message ${messageId} deletion notified to sender ${senderId}`);
     }
   });
 
