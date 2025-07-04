@@ -1,1 +1,1 @@
-export const server_url = "http://localhost:5000"; // Local server URL
+export const server_url = "https://chat-app-zvew.onrender.com"; // Local server URL
