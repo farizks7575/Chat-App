@@ -1,0 +1,8 @@
+/* Disable scrolling on the entire page */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* This completely disables scrolling */
+  height: 100vh;
+  width: 100vw;
+}
